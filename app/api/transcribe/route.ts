@@ -1,34 +1,25 @@
-// OpenAI Whisper API - Accepts Blob URL and transcribes
+// Direct OpenAI Whisper API call (AI SDK v5 doesn't support TranscriptionModelV3)
+
 export async function POST(req: Request) {
   try {
-    const body = await req.json()
-    const { blobUrl, filename } = body
+    const formData = await req.formData()
+    const audioFile = formData.get("audio") as File
 
-    if (!blobUrl) {
-      return Response.json({ error: "No blob URL provided" }, { status: 400 })
+    if (!audioFile) {
+      return Response.json(
+        { error: "No audio file provided" },
+        { status: 400 }
+      )
     }
 
-    console.log("[v0] Fetching audio from Blob:", blobUrl)
-
-    // Fetch audio from Blob storage
-    const audioResponse = await fetch(blobUrl)
-    if (!audioResponse.ok) {
-      throw new Error("Failed to fetch audio from Blob storage")
-    }
-
-    const audioBlob = await audioResponse.blob()
-    const audioFile = new File([audioBlob], filename || "audio.mp3", { 
-      type: audioBlob.type || "audio/mpeg" 
-    })
-
-    console.log("[v0] Transcribing:", filename, "size:", audioFile.size)
+    console.log("[v0] Transcribing file:", audioFile.name, "size:", audioFile.size)
 
     // Create FormData for OpenAI API
     const transcriptionFormData = new FormData()
     transcriptionFormData.append("file", audioFile)
     transcriptionFormData.append("model", "whisper-1")
 
-    // Call OpenAI Whisper API
+    // Call OpenAI Whisper API directly
     const response = await fetch("https://api.openai.com/v1/audio/transcriptions", {
       method: "POST",
       headers: {
@@ -39,18 +30,19 @@ export async function POST(req: Request) {
 
     if (!response.ok) {
       const error = await response.json()
-      console.error("[v0] OpenAI error:", error)
+      console.error("[v0] OpenAI API error:", error)
       throw new Error(error.error?.message || "OpenAI API error")
     }
 
     const result = await response.json()
-    console.log("[v0] Transcription complete")
+    console.log("[v0] Transcription successful, text length:", result.text.length)
 
     return Response.json({ transcript: result.text })
   } catch (error) {
     console.error("[v0] Transcription error:", error instanceof Error ? error.message : error)
+    const errorMsg = error instanceof Error ? error.message : "Unknown error during transcription"
     return Response.json(
-      { error: `Failed to transcribe: ${error instanceof Error ? error.message : "Unknown error"}` },
+      { error: `Failed to transcribe audio: ${errorMsg}` },
       { status: 500 }
     )
   }

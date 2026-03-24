@@ -34,8 +34,6 @@ interface Script {
   sections: ScriptSection[]
   criteria?: GeneratedCriteria[]
   is_active: boolean
-  created_at?: string
-  full_script?: string
 }
 
 interface Rubric {
@@ -55,9 +53,6 @@ export default function SettingsPage() {
   const [systemPromptEdited, setSystemPromptEdited] = useState(false)
   const [llmModelEdited, setLlmModelEdited] = useState(false)
   const [editingScriptId, setEditingScriptId] = useState<string | null>(null)
-  const [editingScriptName, setEditingScriptName] = useState("")
-  const [editingScriptContent, setEditingScriptContent] = useState<string>("")
-  const [isEditingContent, setIsEditingContent] = useState(false)
   const [editForm, setEditForm] = useState<Script | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -129,19 +124,13 @@ export default function SettingsPage() {
         newScriptForm.sections.filter((s) => s.name)
       )
 
-      const filteredSections = newScriptForm.sections.filter((s) => s.name)
-      const fullScriptText = filteredSections
-        .map((s, i) => `${i + 1}. ${s.name}\n${s.instructions}${s.tips ? "\nTip: " + s.tips : ""}`)
-        .join("\n\n")
-
       const { data: scriptData } = await supabase
         .from("scripts")
         .insert({
           rubric_id: rubric.id,
           name: newScriptForm.name,
           description: newScriptForm.description,
-          sections: filteredSections,
-          full_script: fullScriptText,
+          sections: newScriptForm.sections.filter((s) => s.name),
           criteria: generatedCriteria,
           is_active: false,
         })
@@ -174,43 +163,6 @@ export default function SettingsPage() {
       setLlmModelEdited(false)
     }
     setSaving(false)
-  }
-
-  async function handleUpdateScriptName(scriptId: string, newName: string) {
-    const { error } = await supabase
-      .from("scripts")
-      .update({ name: newName })
-      .eq("id", scriptId)
-
-    if (!error) {
-      setScripts(scripts.map((s) => (s.id === scriptId ? { ...s, name: newName } : s)))
-      setEditingScriptId(null)
-      setEditingScriptName("")
-    }
-  }
-
-  async function handleUpdateScriptContent(scriptId: string, content: string) {
-    const { error } = await supabase
-      .from("scripts")
-      .update({ full_script: content })
-      .eq("id", scriptId)
-
-    if (!error) {
-      setScripts(
-        scripts.map((s) =>
-          s.id === scriptId ? { ...s, full_script: content } : s
-        )
-      )
-      setIsEditingContent(false)
-    }
-  }
-
-  function getScriptDisplayText(script: Script): string {
-    if (script.full_script) return script.full_script
-    // Fallback: build from sections if full_script not saved yet
-    return script.sections
-      .map((s, i) => `${i + 1}. ${s.name}\n${s.instructions}${s.tips ? "\nTip: " + s.tips : ""}`)
-      .join("\n\n")
   }
 
   async function handleDeleteScript(scriptId: string) {
@@ -409,59 +361,10 @@ export default function SettingsPage() {
               <Card key={script.id}>
                 <AccordionItem value={script.id} className="border-0">
                   <AccordionTrigger className="hover:no-underline p-4">
-                    <div className="flex items-center gap-3 text-left flex-1">
+                    <div className="flex items-center gap-3 text-left">
                       <div className="flex-1">
-                        {editingScriptId === script.id ? (
-                          <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
-                            <Input
-                              autoFocus
-                              value={editingScriptName}
-                              onChange={(e) => setEditingScriptName(e.target.value)}
-                              className="font-semibold h-9"
-                            />
-                            <Button
-                              size="sm"
-                              variant="default"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleUpdateScriptName(script.id, editingScriptName)
-                              }}
-                              className="h-9"
-                            >
-                              <Save className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                setEditingScriptId(null)
-                                setEditingScriptName("")
-                              }}
-                              className="h-9"
-                            >
-                              <X className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        ) : (
-                          <div className="space-y-1">
-                            <div
-                              className="flex items-center gap-2 group cursor-pointer"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                setEditingScriptId(script.id)
-                                setEditingScriptName(script.name)
-                              }}
-                            >
-                              <h3 className="font-semibold text-lg">{script.name}</h3>
-                              <Pencil className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity" />
-                            </div>
-                            <p className="text-xs text-muted-foreground">
-                              Created {new Date(script.created_at || "").toLocaleDateString()}
-                            </p>
-                            <p className="text-sm text-muted-foreground">{script.description}</p>
-                          </div>
-                        )}
+                        <h3 className="font-semibold text-lg">{script.name}</h3>
+                        <p className="text-sm text-muted-foreground">{script.description}</p>
                       </div>
                       {script.is_active && <Badge>Active</Badge>}
                     </div>
@@ -469,59 +372,6 @@ export default function SettingsPage() {
 
                   <AccordionContent className="pt-0">
                     <div className="space-y-4 p-4 border-t">
-                      {/* Complete Script */}
-                      <div>
-                          <div className="flex items-center justify-between mb-2">
-                          <h4 className="font-semibold">Complete Script</h4>
-                          {!isEditingContent ? (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                setEditingScriptContent(getScriptDisplayText(script))
-                                setIsEditingContent(true)
-                              }}
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                          ) : null}
-                        </div>
-                        {isEditingContent ? (
-                          <div className="space-y-2">
-                            <Textarea
-                              value={editingScriptContent}
-                              onChange={(e) => setEditingScriptContent(e.target.value)}
-                              className="font-mono text-xs min-h-64"
-                              placeholder="Edit script content..."
-                            />
-                            <div className="flex gap-2">
-                              <Button
-                                size="sm"
-                                variant="default"
-                                onClick={() => handleUpdateScriptContent(script.id, editingScriptContent)}
-                              >
-                                <Save className="h-4 w-4 mr-1" />
-                                Save
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => setIsEditingContent(false)}
-                              >
-                                <X className="h-4 w-4 mr-1" />
-                                Cancel
-                              </Button>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="p-3 bg-slate-900 dark:bg-slate-800 rounded border border-slate-700 text-slate-100">
-                            <p className="font-mono text-xs whitespace-pre-wrap max-h-64 overflow-y-auto">
-                              {getScriptDisplayText(script)}
-                            </p>
-                          </div>
-                        )}
-                      </div>
-
                       {/* Sections */}
                       <div>
                         <h4 className="font-semibold mb-2">Script Sections</h4>

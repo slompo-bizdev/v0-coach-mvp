@@ -11,7 +11,6 @@ export default function TechPage() {
     { name: "TypeScript", icon: "🔷", desc: "Type-safe development" },
     { name: "Tailwind CSS v4", icon: "🎨", desc: "Utility-first styling" },
     { name: "Supabase", icon: "🟢", desc: "PostgreSQL + Auth + Storage" },
-    { name: "Vercel Blob", icon: "📦", desc: "Large file uploads up to 50MB" },
     { name: "AI SDK", icon: "🧠", desc: "Vercel AI SDK for LLM integration" },
     { name: "Resend", icon: "📧", desc: "Email delivery service" },
   ]
@@ -25,19 +24,14 @@ export default function TechPage() {
 
   const apis = [
     {
-      route: "POST /api/upload-audio",
-      desc: "Large file upload handler (Vercel Blob)",
-      flow: ["Client requests upload token", "Validates file type/size (max 50MB)", "Returns signed URL for direct upload", "Bypasses 4.5MB serverless limit"],
+      route: "POST /api/analyze",
+      desc: "AI call analysis engine",
+      flow: ["Fetches script", "Gets system prompt", "Calls GPT-4o-mini or Gemini 2.5", "Returns structured feedback"],
     },
     {
       route: "POST /api/transcribe",
       desc: "Audio to transcript conversion",
-      flow: ["Receives Blob URL", "Fetches audio from Blob storage", "Uses OpenAI Whisper", "Returns cleaned transcript"],
-    },
-    {
-      route: "POST /api/analyze",
-      desc: "AI call analysis engine",
-      flow: ["Fetches script + criteria", "Gets system prompt", "Calls GPT-4o-mini or Gemini 2.5", "Returns structured feedback"],
+      flow: ["Receives MP3/WAV", "Uses OpenAI Whisper", "Returns cleaned transcript"],
     },
     {
       route: "POST /api/generate-criteria",
@@ -47,7 +41,7 @@ export default function TechPage() {
     {
       route: "POST /api/send-coaching",
       desc: "Sends branded email feedback",
-      flow: ["Takes analysis results", "Generates HTML email", "Sends via Resend"],
+      flow: ["Takes analysis results", "Generates HTML email", "Sends via Resend (coaching@resend.dev)"],
     },
   ]
 
@@ -253,10 +247,10 @@ export default function TechPage() {
               </div>
 
               <div className="flex items-center gap-4">
-                <div className="flex-shrink-0 w-12 h-12 rounded-full bg-purple-100 dark:bg-purple-900 flex items-center justify-center font-semibold">2</div>
+                <div className="flex-shrink-0 w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center font-semibold">2</div>
                 <div>
-                  <p className="font-semibold">Store in Vercel Blob (if audio)</p>
-                  <p className="text-sm text-muted-foreground">Client uploads directly to Blob (up to 50MB)</p>
+                  <p className="font-semibold">Transcribe (if audio)</p>
+                  <p className="text-sm text-muted-foreground">OpenAI Whisper converts to text</p>
                 </div>
               </div>
               <div className="h-8 flex justify-center">
@@ -265,17 +259,6 @@ export default function TechPage() {
 
               <div className="flex items-center gap-4">
                 <div className="flex-shrink-0 w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center font-semibold">3</div>
-                <div>
-                  <p className="font-semibold">Transcribe via Whisper</p>
-                  <p className="text-sm text-muted-foreground">API fetches from Blob, sends to OpenAI Whisper</p>
-                </div>
-              </div>
-              <div className="h-8 flex justify-center">
-                <ArrowRight className="w-6 h-6 text-muted-foreground rotate-90" />
-              </div>
-
-              <div className="flex items-center gap-4">
-                <div className="flex-shrink-0 w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center font-semibold">4</div>
                 <div>
                   <p className="font-semibold">Fetch Script + Criteria</p>
                   <p className="text-sm text-muted-foreground">Get scoring rubric from Supabase</p>
@@ -286,7 +269,7 @@ export default function TechPage() {
               </div>
 
               <div className="flex items-center gap-4">
-                <div className="flex-shrink-0 w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center font-semibold">5</div>
+                <div className="flex-shrink-0 w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center font-semibold">4</div>
                 <div>
                   <p className="font-semibold">AI Analysis</p>
                   <p className="text-sm text-muted-foreground">GPT/Gemini evaluates against script</p>
@@ -297,7 +280,7 @@ export default function TechPage() {
               </div>
 
               <div className="flex items-center gap-4">
-                <div className="flex-shrink-0 w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center font-semibold">6</div>
+                <div className="flex-shrink-0 w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center font-semibold">5</div>
                 <div>
                   <p className="font-semibold">Save Results</p>
                   <p className="text-sm text-muted-foreground">Store in Supabase calls table</p>
@@ -308,7 +291,7 @@ export default function TechPage() {
               </div>
 
               <div className="flex items-center gap-4">
-                <div className="flex-shrink-0 w-12 h-12 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center font-semibold">7</div>
+                <div className="flex-shrink-0 w-12 h-12 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center font-semibold">6</div>
                 <div>
                   <p className="font-semibold">Send Email</p>
                   <p className="text-sm text-muted-foreground">Branded HTML feedback via Resend</p>

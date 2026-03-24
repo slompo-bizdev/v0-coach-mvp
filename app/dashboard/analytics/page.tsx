@@ -25,7 +25,6 @@ interface Call {
   overall_score: number
   total_criteria: number
   criteria: any[]
-  call_outcome: string
 }
 
 interface CriteriaFailures {
@@ -48,8 +47,6 @@ export default function AnalyticsPage() {
   const [achievements, setAchievements] = useState<Achievement[]>([])
   const [loading, setLoading] = useState(true)
   const [insights, setInsights] = useState<string[]>([])
-  const [outcomeMetrics, setOutcomeMetrics] = useState({ closed: 0, notClosed: 0, partial: 0, closeRate: 0 })
-  const [trainerConversions, setTrainerConversions] = useState<{ name: string; closed: number; total: number; rate: number }[]>([])
 
   const supabase = createClient()
 
@@ -135,20 +132,17 @@ export default function AnalyticsPage() {
       const achievementsList: Achievement[] = []
 
       // Best performer
-      const trainerEntries = Array.from(trainerScores.entries())
-      if (trainerEntries.length > 0) {
-        const [topTrainer, topStats] = trainerEntries.reduce((a, b) =>
-          b[1].total / b[1].count > a[1].total / a[1].count ? b : a
-        )
+      const [topTrainer, topStats] = Array.from(trainerScores.entries()).reduce((a, b) =>
+        b[1].total / b[1].count > a[1].total / a[1].count ? b : a
+      ) || ["", { total: 0, count: 0, perfect: 0 }]
 
-        if (topTrainer && topStats.count > 0) {
-          achievementsList.push({
-            trainer: topTrainer,
-            badge: "Master Coach",
-            icon: "👑",
-            reason: `Highest average score: ${(topStats.total / topStats.count).toFixed(1)}/5`,
-          })
-        }
+      if (topTrainer && topStats.count > 0) {
+        achievementsList.push({
+          trainer: topTrainer,
+          badge: "Master Coach",
+          icon: "👑",
+          reason: `Highest average score: ${(topStats.total / topStats.count).toFixed(1)}/5`,
+        })
       }
 
       // Perfect calls
@@ -211,34 +205,6 @@ export default function AnalyticsPage() {
       }
 
       setInsights(insightsList)
-
-      // Calculate outcome metrics
-      const closed = callsData.filter((c) => c.call_outcome === "closed").length
-      const notClosed = callsData.filter((c) => c.call_outcome === "not_closed").length
-      const partial = callsData.filter((c) => c.call_outcome === "partial").length
-      const closeRate = callsData.length > 0 ? Math.round((closed / callsData.length) * 100) : 0
-      setOutcomeMetrics({ closed, notClosed, partial, closeRate })
-
-      // Calculate per-trainer conversion rates
-      const trainerMap = new Map<string, { closed: number; total: number }>()
-      callsData.forEach((call) => {
-        if (!trainerMap.has(call.trainer_name)) {
-          trainerMap.set(call.trainer_name, { closed: 0, total: 0 })
-        }
-        const entry = trainerMap.get(call.trainer_name)!
-        entry.total += 1
-        if (call.call_outcome === "closed") entry.closed += 1
-      })
-      const conversions = Array.from(trainerMap.entries())
-        .map(([name, data]) => ({
-          name,
-          closed: data.closed,
-          total: data.total,
-          rate: data.total > 0 ? Math.round((data.closed / data.total) * 100) : 0,
-        }))
-        .sort((a, b) => b.rate - a.rate)
-      setTrainerConversions(conversions)
-
       setLoading(false)
     }
 
@@ -280,74 +246,6 @@ export default function AnalyticsPage() {
             </Card>
           ))}
         </div>
-      )}
-
-      {/* Conversion Metrics */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-3xl font-bold text-green-600 dark:text-green-400">{outcomeMetrics.closed}</p>
-            <p className="text-sm text-muted-foreground">Closed Deals</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-3xl font-bold text-red-600 dark:text-red-400">{outcomeMetrics.notClosed}</p>
-            <p className="text-sm text-muted-foreground">Not Closed</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-3xl font-bold text-amber-600 dark:text-amber-400">{outcomeMetrics.partial}</p>
-            <p className="text-sm text-muted-foreground">Partial</p>
-          </CardContent>
-        </Card>
-        <Card className={outcomeMetrics.closeRate >= 50 ? "border-green-200 dark:border-green-800" : "border-red-200 dark:border-red-800"}>
-          <CardContent className="pt-6">
-            <p className={`text-3xl font-bold ${outcomeMetrics.closeRate >= 50 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
-              {outcomeMetrics.closeRate}%
-            </p>
-            <p className="text-sm text-muted-foreground">Close Rate</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Trainer Conversion Leaderboard */}
-      {trainerConversions.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Award className="h-4 w-4" />
-              Conversion Leaderboard
-            </CardTitle>
-            <CardDescription>Close rate per trainer</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {trainerConversions.map((trainer, i) => (
-                <div key={i} className="flex items-center gap-4">
-                  <span className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-bold shrink-0">
-                    {i + 1}
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{trainer.name}</p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
-                        <div
-                          className={`h-full rounded-full ${trainer.rate >= 50 ? "bg-green-500" : "bg-red-500"}`}
-                          style={{ width: `${trainer.rate}%` }}
-                        />
-                      </div>
-                      <span className="text-xs text-muted-foreground shrink-0">
-                        {trainer.closed}/{trainer.total} ({trainer.rate}%)
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
       )}
 
       {/* Charts Grid */}
