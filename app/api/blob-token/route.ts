@@ -1,6 +1,15 @@
 import { put } from "@vercel/blob"
 import { NextResponse } from "next/server"
 
+// Increase body size limit to 50MB for audio files
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: "50mb",
+    },
+  },
+}
+
 export async function POST(request: Request): Promise<NextResponse> {
   try {
     const formData = await request.formData()
