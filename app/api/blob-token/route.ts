@@ -1,56 +1,48 @@
-import { put } from "@vercel/blob"
+import { handleUpload, type HandleUploadBody } from "@vercel/blob/client"
 import { NextResponse } from "next/server"
 
-// Increase body size limit to 50MB for audio files
-export const config = {
-  api: {
-    bodyParser: {
-      sizeLimit: "50mb",
-    },
-  },
-}
-
 export async function POST(request: Request): Promise<NextResponse> {
+  const body = (await request.json()) as HandleUploadBody
+
   try {
-    const formData = await request.formData()
-    const file = formData.get("file") as File | null
-    const filename = formData.get("filename") as string | null
-
-    if (!file) {
-      return NextResponse.json({ error: "No file provided" }, { status: 400 })
-    }
-
-    // Validate file type
-    const validExtensions = [".mp3", ".wav", ".m4a", ".webm", ".mp4", ".ogg", ".mpeg"]
-    const name = filename || file.name
-    const isValid = validExtensions.some((ext) => name.toLowerCase().endsWith(ext))
-    
-    if (!isValid) {
-      return NextResponse.json(
-        { error: "Invalid file type. Only audio files are allowed." },
-        { status: 400 }
-      )
-    }
-
-    // Sanitize filename
-    const sanitizedName = name.replace(/[^a-zA-Z0-9.-]/g, "_").replace(/\.\.+/g, ".")
-    const timestamp = Date.now()
-    const blobName = `audio/${timestamp}_${sanitizedName}`
-
-    // Upload to Vercel Blob
-    const blob = await put(blobName, file, {
-      access: "public",
-      contentType: file.type || "audio/mpeg",
+    const jsonResponse = await handleUpload({
+      body,
+      request,
+      onBeforeGenerateToken: async (pathname) => {
+        // Validate file type
+        const validExtensions = [".mp3", ".wav", ".m4a", ".webm", ".mp4", ".ogg", ".mpeg"]
+        const isValid = validExtensions.some((ext) =>
+          pathname.toLowerCase().endsWith(ext)
+        )
+        if (!isValid) {
+          throw new Error("Invalid file type. Only audio files are allowed.")
+        }
+        return {
+          allowedContentTypes: [
+            "audio/mpeg",
+            "audio/mp3",
+            "audio/wav",
+            "audio/x-wav",
+            "audio/m4a",
+            "audio/x-m4a",
+            "audio/webm",
+            "audio/mp4",
+            "audio/ogg",
+          ],
+          maximumSizeInBytes: 100 * 1024 * 1024, // 100MB
+        }
+      },
+      onUploadCompleted: async ({ blob }) => {
+        console.log("[v0] Audio uploaded to Blob:", blob.url)
+      },
     })
 
-    console.log("[v0] Audio uploaded to Blob:", blob.url)
-
-    return NextResponse.json({ url: blob.url })
+    return NextResponse.json(jsonResponse)
   } catch (error) {
     console.error("[v0] Upload handler error:", error)
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Upload failed" },
-      { status: 500 }
+      { status: 400 }
     )
   }
 }

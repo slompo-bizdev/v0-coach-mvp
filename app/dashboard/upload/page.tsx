@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect } from "react"
 import { useDropzone } from "react-dropzone"
+import { upload } from "@vercel/blob/client"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import {
@@ -169,27 +170,25 @@ export default function UploadPage() {
 
       // Step 1: Transcribe audio if needed
       if (uploadType === "audio" && formData.audioFile) {
-        // Step 1a: Upload to Vercel Blob via server
+        // Step 1a: Upload to Vercel Blob (client-side direct upload - no server size limit)
         setProcessingStatus("Uploading audio...")
         setProgress(10)
 
-        // Create FormData to send file to server
-        const uploadFormData = new FormData()
-        uploadFormData.append("file", formData.audioFile)
-        uploadFormData.append("filename", formData.audioFile.name)
+        // Sanitize filename
+        const sanitizedName = formData.audioFile.name
+          .replace(/[^a-zA-Z0-9.-]/g, "_")
+          .replace(/\.\.+/g, ".")
+        const timestamp = Date.now()
+        const blobName = `audio/${timestamp}_${sanitizedName}`
 
-        const uploadRes = await fetch("/api/blob-token", {
-          method: "POST",
-          body: uploadFormData,
+        // Direct client upload to Vercel Blob (bypasses server 4MB limit)
+        const blob = await upload(blobName, formData.audioFile, {
+          access: "public",
+          handleUploadUrl: "/api/blob-token",
         })
 
-        if (!uploadRes.ok) {
-          const errData = await uploadRes.json().catch(() => ({}))
-          throw new Error(errData.error || "Failed to upload audio")
-        }
-
-        const uploadData = await uploadRes.json()
-        const blobUrl = uploadData.url
+        const blobUrl = blob.url
+        console.log("[v0] Audio uploaded to Blob:", blobUrl)
 
         setProgress(30)
 
