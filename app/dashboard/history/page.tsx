@@ -35,7 +35,7 @@ interface Call {
   id: string
   trainer_name: string
   trainer_email: string
-  lead_name?: string
+  client_name?: string
   created_at: string
   overall_score: number
   total_criteria: number
@@ -62,7 +62,7 @@ export default function HistoryPage() {
       setLoading(true)
       const { data, error } = await supabase
         .from("calls")
-        .select("*, call_outcome, lead_name, detected_outcome")
+        .select("*, call_outcome, client_name, detected_outcome")
         .order("created_at", { ascending: false })
 
       if (error) {
@@ -81,7 +81,7 @@ export default function HistoryPage() {
     (call) =>
       call.trainer_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       call.trainer_email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (call.lead_name && call.lead_name.toLowerCase().includes(searchTerm.toLowerCase()))
+      (call.client_name && call.client_name.toLowerCase().includes(searchTerm.toLowerCase()))
   )
 
   const paginatedCalls = filteredCalls.slice(
@@ -181,8 +181,8 @@ export default function HistoryPage() {
                             </div>
                           </TableCell>
                           <TableCell>
-                            {call.lead_name ? (
-                              <span className="font-medium">{call.lead_name}</span>
+                            {call.client_name ? (
+                              <span className="font-medium">{call.client_name}</span>
                             ) : (
                               <span className="text-muted-foreground text-sm">-</span>
                             )}
@@ -295,8 +295,8 @@ export default function HistoryPage() {
                 <DialogHeader>
                   <DialogTitle className="flex items-center gap-2">
                     {selectedCall.trainer_name}
-                    {selectedCall.lead_name && (
-                      <span className="text-muted-foreground font-normal text-base">with {selectedCall.lead_name}</span>
+                    {selectedCall.client_name && (
+                      <span className="text-muted-foreground font-normal text-base">with {selectedCall.client_name}</span>
                     )}
                   </DialogTitle>
                   <DialogDescription>
