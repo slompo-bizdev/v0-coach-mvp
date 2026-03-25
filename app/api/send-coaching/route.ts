@@ -195,7 +195,7 @@ export async function POST(req: Request) {
           rubric_id: rubricData.id,
           trainer_name: trainerName,
           trainer_email: cleanEmail,
-          client_name: body.clientName || null,
+          lead_name: body.leadName || null,
           transcript: body.transcript,
           overall_score: body.overallScore,
           total_criteria: body.totalCriteria,

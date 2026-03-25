@@ -44,7 +44,7 @@ type CallOutcome = "closed" | "follow_up" | "objection_unresolved" | "no_decisio
 interface FormData {
   trainerName: string
   trainerEmail: string
-  clientName: string
+  leadName: string
   audioFile: File | null
   transcript: string
   scriptId?: string
@@ -83,7 +83,7 @@ export default function UploadPage() {
   const [formData, setFormData] = useState<FormData>({
     trainerName: "",
     trainerEmail: "",
-    clientName: "",
+    leadName: "",
     audioFile: null,
     transcript: "",
     scriptId: "",
@@ -294,7 +294,7 @@ export default function UploadPage() {
         body: JSON.stringify({
           trainerName: formData.trainerName,
           trainerEmail: formData.trainerEmail,
-          clientName: formData.clientName,
+          leadName: formData.leadName,
           overallScore: analysisResult.overallScore,
           totalCriteria: analysisResult.sections?.length || analysisResult.criteria.length,
           sections: analysisResult.sections || analysisResult.criteria,
@@ -328,7 +328,7 @@ export default function UploadPage() {
     setFormData({
       trainerName: "",
       trainerEmail: "",
-      clientName: "",
+      leadName: "",
       audioFile: null,
       transcript: "",
       scriptId: "",
@@ -618,15 +618,15 @@ export default function UploadPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="clientName">Client Name</Label>
+              <Label htmlFor="leadName">Lead Name</Label>
               <Input
-                id="clientName"
+                id="leadName"
                 placeholder="e.g., Jane Doe"
-                value={formData.clientName}
+                value={formData.leadName}
                 onChange={(e) =>
                   setFormData((prev) => ({
                     ...prev,
-                    clientName: e.target.value,
+                    leadName: e.target.value,
                   }))
                 }
               />
