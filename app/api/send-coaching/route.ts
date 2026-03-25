@@ -14,6 +14,7 @@ interface SectionResult {
 interface CoachingEmailData {
   trainerName: string
   trainerEmail: string
+  leadName?: string
   overallScore: number
   totalCriteria: number
   criteria: SectionResult[]
@@ -23,6 +24,7 @@ interface CoachingEmailData {
   improvements: string[]
   transcript: string
   callOutcome?: string
+  detectedOutcome?: string
 }
 
 function scoreColor(score: number): { bg: string; border: string; text: string; bar: string } {
@@ -68,6 +70,7 @@ function generateEmailHtml(data: CoachingEmailData): string {
   <div style="text-align: center; margin-bottom: 30px;">
     <h1 style="color: #1a1a1a; margin-bottom: 6px;">Hey ${data.trainerName},</h1>
     <p style="color: #666; font-size: 15px; margin: 0;">Here is your personalized coaching feedback from Ask Moses AI.</p>
+    ${data.leadName ? `<p style="color: #444; font-size: 14px; margin: 8px 0 0 0;">Call with <strong>${data.leadName}</strong></p>` : ""}
     ${outcomeLabel ? `<p style="display: inline-block; margin-top: 10px; background: #f0f9ff; color: #0284c7; font-size: 13px; padding: 6px 14px; border-radius: 20px; border: 1px solid #bae6fd;">Call Outcome: ${outcomeLabel}</p>` : ""}
   </div>
 
@@ -195,7 +198,7 @@ export async function POST(req: Request) {
           rubric_id: rubricData.id,
           trainer_name: trainerName,
           trainer_email: cleanEmail,
-          client_name: body.clientName || null,
+          lead_name: body.leadName || null,
           transcript: body.transcript,
           overall_score: body.overallScore,
           total_criteria: body.totalCriteria,
