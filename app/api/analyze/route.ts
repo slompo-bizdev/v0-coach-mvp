@@ -69,6 +69,9 @@ export async function POST(req: Request) {
       return Response.json({ error: "Script not found" }, { status: 400 })
     }
 
+    console.log("[v0] Using script:", scriptData.name, "ID:", scriptData.id)
+    console.log("[v0] Script has", scriptData.sections?.length || 0, "sections")
+
     // Use system prompt and LLM model from rubric
     const systemPrompt = rubricData.system_prompt || `You are an expert sales coach. Your role is to analyze sales call transcripts and provide constructive, motivational feedback based on the script sections. Be encouraging while pointing out areas for improvement. Focus on practical, actionable coaching.`
     const llmModel = rubricData.llm_model || "openai/gpt-4o-mini"
@@ -88,6 +91,9 @@ export async function POST(req: Request) {
       : ""
 
     const sectionNames = scriptData.sections.map((s: any) => s.name)
+
+    console.log("[v0] Section names being evaluated:", sectionNames)
+    console.log("[v0] Total criteria guidelines:", generatedCriteria.length)
 
     const prompt = `You are analyzing a sales call transcript. Score the sales rep on each section of the sales script using a 1–5 scale.
 
@@ -118,6 +124,7 @@ IMPORTANT: Also determine the OUTCOME of this call based on what actually happen
 Return your analysis with honest, behaviorally specific feedback per section.`
 
     console.log("[v0] Starting analysis with model:", llmModel)
+    console.log("[v0] Prompt preview (first 300 chars):", prompt.substring(0, 300))
     const { object } = await generateObject({
       model: llmModel,
       system: systemPrompt,
@@ -125,7 +132,7 @@ Return your analysis with honest, behaviorally specific feedback per section.`
       prompt,
     })
 
-    console.log("[v0] Analysis complete")
+    console.log("[v0] Analysis complete - Scores:", object.sections.map((s: any) => `${s.name}: ${s.score}/5`))
     return Response.json({
       ...object,
       // backward compat: map sections as criteria for email/DB
