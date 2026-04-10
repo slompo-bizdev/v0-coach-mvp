@@ -35,10 +35,9 @@ export default function DashboardPage() {
   const [recentCalls, setRecentCalls] = useState<Call[]>([])
   const [loading, setLoading] = useState(true)
 
-  const supabase = createClient()
-
   useEffect(() => {
     async function fetchStats() {
+      const supabase = createClient()
       setLoading(true)
 
       // Fetch all calls

@@ -45,6 +45,7 @@ interface Call {
   improvements: string[]
   call_outcome?: CallOutcome
   detected_outcome?: CallOutcome
+  ghl_message_id?: string
 }
 
 export default function HistoryPage() {
@@ -62,7 +63,7 @@ export default function HistoryPage() {
       setLoading(true)
       const { data, error } = await supabase
         .from("calls")
-        .select("*, call_outcome, client_name, detected_outcome")
+        .select("*, call_outcome, client_name, detected_outcome, ghl_message_id")
         .order("created_at", { ascending: false })
 
       if (error) {
@@ -147,6 +148,7 @@ export default function HistoryPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead>Source</TableHead>
                       <TableHead>Trainer</TableHead>
                       <TableHead>Lead</TableHead>
                       <TableHead>Date</TableHead>
@@ -174,6 +176,17 @@ export default function HistoryPage() {
                       }
                       return (
                         <TableRow key={call.id}>
+                          <TableCell>
+                            {call.ghl_message_id ? (
+                              <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
+                                GHL
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200">
+                                Manual
+                              </Badge>
+                            )}
+                          </TableCell>
                           <TableCell>
                             <div>
                               <p className="font-medium">{call.trainer_name}</p>
@@ -299,8 +312,17 @@ export default function HistoryPage() {
                       <span className="text-muted-foreground font-normal text-base">with {selectedCall.client_name}</span>
                     )}
                   </DialogTitle>
-                  <DialogDescription>
+                  <DialogDescription className="flex items-center gap-2">
                     {new Date(selectedCall.created_at).toLocaleString()}
+                    {selectedCall.ghl_message_id ? (
+                      <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200 text-xs">
+                        Imported from GHL
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200 text-xs">
+                        Manual Upload
+                      </Badge>
+                    )}
                   </DialogDescription>
                 </DialogHeader>
 

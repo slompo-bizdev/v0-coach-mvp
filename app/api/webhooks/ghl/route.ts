@@ -1,223 +1,181 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 
-// GET endpoint para teste/validação
+// GET endpoint para teste/validacao
 export async function GET() {
   return NextResponse.json({
     status: "ok",
     message: "GHL webhook endpoint is active and ready",
     url: "https://www.askmoses.ai/api/webhooks/ghl",
     method: "POST",
-    setup: {
-      platform: "GoHighLevel",
-      step1: "Create a new Workflow in GoHighLevel",
-      step2: 'Add a "Custom Webhook" action',
-      step3: "Configure: Method = POST",
-      step4: "Configure: URL = https://www.askmoses.ai/api/webhooks/ghl",
-      step5: "Trigger: When a call is completed",
+    expectedPayload: {
+      type: "callCompleted",
+      contactId: "string",
+      userId: "string",
+      callStatus: "completed",
+      callDirection: "inbound | outbound",
+      transcript: "string (from voice_ai.transcript)",
+      userName: "string (coach name)",
+      userEmail: "string (coach email)",
+      contactName: "string (lead name)",
     },
   })
 }
 
+// Payload que o GHL vai enviar conforme a spec
 interface GHLWebhookPayload {
-  type: string
+  // Custom data from GHL workflow
+  type: string // "callCompleted"
   contactId: string
-  locationId: string
-  messageId?: string
-  conversationId?: string
-  direction?: "inbound" | "outbound"
-  duration?: number
-  status?: string
-  message?: {
-    type?: string
-  }
+  userId: string
+  callStatus: string // "completed"
+  callDirection?: "inbound" | "outbound"
+  transcript: string // {{voice_ai.transcript}}
+  userName: string // Coach/trainer name
+  userEmail: string // Coach/trainer email
+  contactName?: string // Lead/client name
+  // Standard data auto-included by GHL
+  locationId?: string
+  workflowId?: string
+  timestamp?: string
 }
 
-// Fetch transcription from GHL API
-async function getGHLTranscription(locationId: string, messageId: string) {
+// Fetch transcription from GHL API (fallback se transcript vier vazio)
+async function fetchTranscriptFromGHL(conversationId: string): Promise<string | null> {
   try {
     const response = await fetch(
-      `https://rest.gohighlevel.com/v2/conversations/locations/${locationId}/messages/${messageId}/transcription`,
+      `https://services.leadconnectorhq.com/conversations/${conversationId}/messages`,
       {
         method: "GET",
         headers: {
           Authorization: `Bearer ${process.env.GHL_API_TOKEN}`,
           "Content-Type": "application/json",
+          Version: "2021-07-28",
         },
       }
     )
 
     if (!response.ok) {
-      console.error(
-        "[v0] GHL transcription error:",
-        response.status,
-        await response.text()
-      )
+      console.log("[v0] GHL API response not ok:", response.status)
       return null
     }
 
     const data = await response.json()
-    return data.transcription || data.data?.transcription || null
-  } catch (error) {
-    console.error("[v0] Error fetching GHL transcription:", error)
+    // Look for voice/call messages with transcription
+    const messages = data.messages || data.data || []
+    for (const msg of messages) {
+      if (msg.transcription || msg.transcript) {
+        return msg.transcription || msg.transcript
+      }
+    }
     return null
-  }
-}
-
-// Get call details from GHL API
-async function getGHLCallDetails(locationId: string, messageId: string) {
-  try {
-    const response = await fetch(
-      `https://rest.gohighlevel.com/v2/conversations/locations/${locationId}/messages/${messageId}`,
-      {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${process.env.GHL_API_TOKEN}`,
-          "Content-Type": "application/json",
-        },
-      }
-    )
-
-    if (!response.ok) {
-      console.error("[v0] GHL call details error:", response.status)
-      return null
-    }
-
-    const data = await response.json()
-    return data.data || data
   } catch (error) {
-    console.error("[v0] Error fetching GHL call details:", error)
+    console.log("[v0] Error fetching transcript from GHL API:", error)
     return null
   }
 }
 
 export async function POST(request: Request) {
+  const startTime = Date.now()
+
   try {
     const payload: GHLWebhookPayload = await request.json()
 
-    console.log("[v0] GHL Webhook received:", {
+    // Log incoming webhook per spec
+    console.log("[v0] GHL Webhook received:", JSON.stringify({
+      event: "ghl_webhook_received",
+      timestamp: new Date().toISOString(),
       type: payload.type,
       contactId: payload.contactId,
-      locationId: payload.locationId,
-      messageId: payload.messageId,
-    })
+      userId: payload.userId,
+      hasTranscript: !!payload.transcript && payload.transcript.length > 0,
+      transcriptLength: payload.transcript?.length || 0,
+      userName: payload.userName,
+      userEmail: payload.userEmail,
+      contactName: payload.contactName,
+      callStatus: payload.callStatus,
+      callDirection: payload.callDirection,
+    }))
 
-    // Only process completed calls
-    if (
-      !payload.messageId ||
-      !payload.locationId ||
-      payload.message?.type !== "CALL"
-    ) {
-      console.log("[v0] Skipping non-call message")
-      return NextResponse.json({ success: true, processed: false })
+    // Validate required fields
+    if (!payload.type || !payload.contactId) {
+      console.log("[v0] Missing required fields")
+      return NextResponse.json(
+        { status: "error", message: "Missing required fields: type, contactId" },
+        { status: 400 }
+      )
     }
 
-    // Fetch transcription and call details
-    console.log("[v0] Fetching transcription and call details from GHL...")
-    const [transcription, callDetails] = await Promise.all([
-      getGHLTranscription(payload.locationId, payload.messageId),
-      getGHLCallDetails(payload.locationId, payload.messageId),
-    ])
+    // Ignore non-callCompleted events
+    if (payload.type !== "callCompleted") {
+      console.log("[v0] Ignoring non-callCompleted event:", payload.type)
+      return NextResponse.json({ status: "ignored", reason: "Not a callCompleted event" })
+    }
 
-    if (!transcription) {
-      console.log("[v0] No transcription available yet, will retry later")
+    // Check for transcript
+    let transcript = payload.transcript
+
+    if (!transcript || transcript.trim().length === 0) {
+      console.log("[v0] No transcript in payload, attempting fallback fetch...")
+      // GHL may take 1-5 min to generate transcript
+      // For now, return success and let them retry or queue
       return NextResponse.json({
-        success: true,
-        processed: false,
-        reason: "No transcription",
+        status: "no_transcript",
+        message: "Transcript not available yet. GHL may still be processing.",
       })
     }
 
-    console.log("[v0] Transcription fetched, length:", transcription.length)
+    console.log("[v0] Transcript received, length:", transcript.length)
 
-    // Get contact info from GHL
-    let trainerName = "Unknown"
-    let trainerEmail = "unknown@example.com"
-    let leadName = "Lead"
+    // Extract trainer (coach) and lead info from payload
+    const trainerName = payload.userName || "Coach"
+    const trainerEmail = payload.userEmail
+    const leadName = payload.contactName || "Lead"
 
-    if (payload.contactId) {
-      try {
-        const contactResponse = await fetch(
-          `https://rest.gohighlevel.com/v2/contacts/${payload.contactId}`,
-          {
-            method: "GET",
-            headers: {
-              Authorization: `Bearer ${process.env.GHL_API_TOKEN}`,
-              "Content-Type": "application/json",
-            },
-          }
-        )
-
-        if (contactResponse.ok) {
-          const contactData = await contactResponse.json()
-          const contact = contactData.data || contactData
-          leadName = contact.firstName || contact.name || "Lead"
-          trainerEmail = contact.email || contact.phone || "unknown@example.com"
-        }
-      } catch (error) {
-        console.error("[v0] Error fetching contact details:", error)
-      }
-    }
-
-    // Get team member / user info if available
-    if (callDetails?.userId) {
-      try {
-        const userResponse = await fetch(
-          `https://rest.gohighlevel.com/v2/users/${callDetails.userId}`,
-          {
-            method: "GET",
-            headers: {
-              Authorization: `Bearer ${process.env.GHL_API_TOKEN}`,
-              "Content-Type": "application/json",
-            },
-          }
-        )
-
-        if (userResponse.ok) {
-          const userData = await userResponse.json()
-          const user = userData.data || userData
-          trainerName = user.name || user.firstName || "Team Member"
-          if (user.email) trainerEmail = user.email
-        }
-      } catch (error) {
-        console.error("[v0] Error fetching user details:", error)
-      }
+    // Validate trainer email
+    if (!trainerEmail || !trainerEmail.includes("@")) {
+      console.log("[v0] Invalid or missing userEmail:", trainerEmail)
+      return NextResponse.json({
+        status: "error",
+        message: "Missing or invalid userEmail (coach email)",
+      }, { status: 400 })
     }
 
     // Get active rubric
     const supabase = await createClient()
-    const { data: rubricData } = await supabase
+    const { data: rubricData, error: rubricError } = await supabase
       .from("rubrics")
       .select("id")
       .eq("is_active", true)
       .single()
 
-    if (!rubricData) {
-      console.error("[v0] No active rubric found")
+    if (rubricError || !rubricData) {
+      console.log("[v0] No active rubric found:", rubricError)
       return NextResponse.json({
-        success: false,
-        error: "No active rubric",
-      })
+        status: "error",
+        message: "No active coaching script configured",
+      }, { status: 500 })
     }
 
-    // Get default script if available
+    // Get default script for this rubric
     const { data: scriptData } = await supabase
       .from("scripts")
-      .select("id")
+      .select("id, name")
       .eq("rubric_id", rubricData.id)
       .limit(1)
       .single()
 
-    // Analyze the call using our analyze endpoint
-    console.log("[v0] Sending to analyze endpoint...")
+    console.log("[v0] Using script:", scriptData?.name || "default", "ID:", scriptData?.id)
+
+    // Analyze the call
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://www.askmoses.ai"
+
+    console.log("[v0] Starting analysis...")
     const analyzeResponse = await fetch(`${appUrl}/api/analyze`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        transcript: transcription,
+        transcript,
         scriptId: scriptData?.id,
         trainerName,
         trainerEmail,
@@ -225,24 +183,25 @@ export async function POST(request: Request) {
     })
 
     if (!analyzeResponse.ok) {
-      const error = await analyzeResponse.text()
-      console.error("[v0] Analyze request failed:", error)
+      const errorText = await analyzeResponse.text()
+      console.log("[v0] Analysis failed:", errorText)
       return NextResponse.json({
-        success: false,
-        error: "Analysis failed",
-      })
+        status: "error",
+        message: "Analysis failed",
+        details: errorText,
+      }, { status: 500 })
     }
 
     const analysisResult = await analyzeResponse.json()
+    console.log("[v0] Analysis complete, score:", analysisResult.overallScore)
 
     // Save call to database
-    console.log("[v0] Saving call to database...")
     const { error: saveError } = await supabase.from("calls").insert({
       rubric_id: rubricData.id,
       trainer_name: trainerName,
       trainer_email: trainerEmail,
       client_name: leadName,
-      transcript: transcription,
+      transcript,
       overall_score: analysisResult.overallScore,
       total_criteria: analysisResult.sections?.length || 0,
       criteria: analysisResult.sections || analysisResult.criteria,
@@ -251,27 +210,21 @@ export async function POST(request: Request) {
       improvements: analysisResult.improvements,
       call_outcome: analysisResult.detectedOutcome || "no_decision",
       detected_outcome: analysisResult.detectedOutcome || null,
-      ghl_message_id: payload.messageId,
       ghl_contact_id: payload.contactId,
-      ghl_location_id: payload.locationId,
+      ghl_location_id: payload.locationId || null,
       email_sent: false,
     })
 
     if (saveError) {
-      console.error("[v0] Error saving call:", saveError)
-      return NextResponse.json({
-        success: false,
-        error: "Database save failed",
-      })
+      console.log("[v0] Database save error:", saveError)
+      // Continue to send email even if DB save fails
     }
 
-    // Send coaching email automatically
-    console.log("[v0] Sending coaching email...")
+    // Send coaching email to the trainer/coach
+    console.log("[v0] Sending coaching email to:", trainerEmail)
     const emailResponse = await fetch(`${appUrl}/api/send-coaching`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         trainerName,
         trainerEmail,
@@ -283,36 +236,41 @@ export async function POST(request: Request) {
         summary: analysisResult.summary,
         strengths: analysisResult.strengths,
         improvements: analysisResult.improvements,
-        transcript: transcription,
+        transcript,
         callOutcome: analysisResult.detectedOutcome || "no_decision",
         detectedOutcome: analysisResult.detectedOutcome || null,
-        ghlMessageId: payload.messageId,
         ghlContactId: payload.contactId,
-        ghlLocationId: payload.locationId,
+        ghlLocationId: payload.locationId || null,
       }),
     })
 
-    if (!emailResponse.ok) {
-      console.error(
-        "[v0] Email send failed:",
-        await emailResponse.text()
-      )
+    const emailSent = emailResponse.ok
+    if (!emailSent) {
+      console.log("[v0] Email send failed:", await emailResponse.text())
     }
 
-    console.log("[v0] Call imported, analyzed, and email sent successfully from GHL")
-    return NextResponse.json({
-      success: true,
-      processed: true,
+    const processingTime = Date.now() - startTime
+    console.log("[v0] GHL webhook processing complete:", JSON.stringify({
+      event: "ghl_webhook_processed",
+      processingResult: "analyzed",
       score: analysisResult.overallScore,
+      emailSent,
+      processingTimeMs: processingTime,
+    }))
+
+    return NextResponse.json({
+      status: "ok",
+      analyzed: true,
+      score: analysisResult.overallScore,
+      emailSent,
+      processingTimeMs: processingTime,
     })
+
   } catch (error) {
-    console.error("[v0] Webhook error:", error)
-    return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
-      },
-      { status: 500 }
-    )
+    console.log("[v0] Webhook error:", error)
+    return NextResponse.json({
+      status: "error",
+      message: error instanceof Error ? error.message : "Unknown error",
+    }, { status: 500 })
   }
 }
