@@ -25,6 +25,9 @@ interface CoachingEmailData {
   transcript: string
   callOutcome?: string
   detectedOutcome?: string
+  ghlMessageId?: string
+  ghlContactId?: string
+  ghlLocationId?: string
 }
 
 function scoreColor(score: number): { bg: string; border: string; text: string; bar: string } {
@@ -210,6 +213,9 @@ export async function POST(req: Request) {
           detected_outcome: body.detectedOutcome || null,
           email_sent: true,
           email_id: data?.id,
+          ghl_message_id: body.ghlMessageId || null,
+          ghl_contact_id: body.ghlContactId || null,
+          ghl_location_id: body.ghlLocationId || null,
         })
 
         if (saveError) {
