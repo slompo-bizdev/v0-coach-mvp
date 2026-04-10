@@ -192,21 +192,19 @@ export async function POST(request: Request) {
 
     // Analyze the call using our analyze endpoint
     console.log("[v0] Sending to analyze endpoint...")
-    const analyzeResponse = await fetch(
-      `${process.env.NEXT_PUBLIC_APP_URL || "https://www.askmoses.ai"}/api/analyze`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          transcript: transcription,
-          scriptId: scriptData?.id,
-          trainerName,
-          trainerEmail,
-        }),
-      }
-    )
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://www.askmoses.ai"
+    const analyzeResponse = await fetch(`${appUrl}/api/analyze`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        transcript: transcription,
+        scriptId: scriptData?.id,
+        trainerName,
+        trainerEmail,
+      }),
+    })
 
     if (!analyzeResponse.ok) {
       const error = await analyzeResponse.text()
@@ -249,7 +247,41 @@ export async function POST(request: Request) {
       })
     }
 
-    console.log("[v0] Call imported and analyzed successfully from GHL")
+    // Send coaching email automatically
+    console.log("[v0] Sending coaching email...")
+    const emailResponse = await fetch(`${appUrl}/api/send-coaching`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        trainerName,
+        trainerEmail,
+        leadName,
+        overallScore: analysisResult.overallScore,
+        totalCriteria: analysisResult.sections?.length || 0,
+        sections: analysisResult.sections || analysisResult.criteria,
+        criteria: analysisResult.sections || analysisResult.criteria,
+        summary: analysisResult.summary,
+        strengths: analysisResult.strengths,
+        improvements: analysisResult.improvements,
+        transcript: transcription,
+        callOutcome: analysisResult.detectedOutcome || "no_decision",
+        detectedOutcome: analysisResult.detectedOutcome || null,
+        ghlMessageId: payload.messageId,
+        ghlContactId: payload.contactId,
+        ghlLocationId: payload.locationId,
+      }),
+    })
+
+    if (!emailResponse.ok) {
+      console.error(
+        "[v0] Email send failed:",
+        await emailResponse.text()
+      )
+    }
+
+    console.log("[v0] Call imported, analyzed, and email sent successfully from GHL")
     return NextResponse.json({
       success: true,
       processed: true,
