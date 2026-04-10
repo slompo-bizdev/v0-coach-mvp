@@ -1,8 +1,6 @@
 import { Resend } from "resend"
 import { createServerClient } from "@supabase/ssr"
 
-const resend = new Resend(process.env.RESEND_API_KEY)
-
 interface SectionResult {
   name: string
   score: number
@@ -158,6 +156,7 @@ export async function POST(req: Request) {
       )
     }
 
+    const resend = new Resend(process.env.RESEND_API_KEY)
     const html = generateEmailHtml(body)
 
     const { data, error } = await resend.emails.send({
