@@ -1,6 +1,24 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 
+// GET endpoint para teste/validação
+export async function GET() {
+  return NextResponse.json({
+    status: "ok",
+    message: "GHL webhook endpoint is active and ready",
+    url: "https://www.askmoses.ai/api/webhooks/ghl",
+    method: "POST",
+    setup: {
+      platform: "GoHighLevel",
+      step1: "Create a new Workflow in GoHighLevel",
+      step2: 'Add a "Custom Webhook" action',
+      step3: "Configure: Method = POST",
+      step4: "Configure: URL = https://www.askmoses.ai/api/webhooks/ghl",
+      step5: "Trigger: When a call is completed",
+    },
+  })
+}
+
 interface GHLWebhookPayload {
   type: string
   contactId: string
