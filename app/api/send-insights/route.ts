@@ -1,7 +1,5 @@
 import { Resend } from "resend"
 
-const resend = new Resend(process.env.RESEND_API_KEY)
-
 interface InsightsEmailData {
   scriptName: string
   insights: {
@@ -170,6 +168,7 @@ export async function POST(req: Request) {
       return Response.json({ error: "No trainers to send to" }, { status: 400 })
     }
 
+    const resend = new Resend(process.env.RESEND_API_KEY)
     const html = generateInsightsEmailHtml(body)
 
     // In sandbox mode, can only send to registered email
